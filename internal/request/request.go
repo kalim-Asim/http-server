@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+
+	"github.com/kalim-Asim/http-server/internal/headers"
 )
 
 // focused only on parsing the HTTP request line
@@ -12,6 +14,7 @@ import (
 type parserState string 
 const (
 	StateInit parserState = "init"
+	StateHeader parserState = "header"
 	StateDone parserState = "done"
 	StateError parserState = "error"
 )
@@ -26,13 +29,15 @@ type RequestLine struct {
 
 // Represents the parsed request so far
 type Request struct {
-	RequestLine RequestLine // holds the parse requestline
+	RequestLine RequestLine // holds the parse requestline(first line)
 	State parserState
+	Headers headers.Headers // headers parsed
 }
 
 func NewRequest() *Request {
 	return &Request{
 		State: StateInit,
+		Headers: *headers.NewHeaders(), 
 	}
 }
 
@@ -86,26 +91,45 @@ func (r *Request) parse(data []byte) (int, error) {
 
 outer:
 	for {
+		currentData := data[read:]
+
 		switch r.State {
 		case StateError:
 			return 0, ERROR_REQUEST_IN_ERROR_STATE 
-
+			
+			
 		case StateInit:
-			rl, n, err := parseRequestLine(data[read:])
+			rl, n, err := parseRequestLine(currentData)
 			if err != nil {
 				return 0, err 
 			}
 			if n == 0 {
 				break outer 
 			}
-
+			
 			r.RequestLine = *rl 
 			read += n 
+			
+			r.State = StateHeader 
+			
+		case StateHeader:
+			n, done, err := r.Headers.Parse(currentData)
+			if err != nil {
+				return 0, fmt.Errorf("error parsing header... ")
+			}
+			if n == 0 {
+				break outer
+			}
+			read += n 
 
-			r.State = StateDone 
+			if done {
+				r.State = StateDone
+			}
 
 		case StateDone:
 			break outer 
+		default:
+			panic("nothing to show... ")
 		}
 	}
 	
@@ -118,6 +142,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := NewRequest()
 	buf := make([]byte, 1024)
 	bufLen := 0
+	// req.State = StateInit
 
 	for !req.done() && !req.error(){
 		n, err := reader.Read(buf[bufLen:]) // how many bytes you have read from the reader
