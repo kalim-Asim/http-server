@@ -7,7 +7,6 @@ import (
 )
 
 // focused only on parsing the HTTP request line
-// GET /index.html HTTP/1.1
 
 // parser state machine, to track parser progress
 type parserState string 
@@ -17,6 +16,7 @@ const (
 	StateError parserState = "error"
 )
 
+// example: request-line -> GET /index.html HTTP/1.1
 // Represents the first line of an HTTP request
 type RequestLine struct {
 	Method        string
