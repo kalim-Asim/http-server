@@ -56,11 +56,14 @@ func (h *Headers) Set(key, value string) {
 	h.headers[strings.ToLower(key)] = value 
 }
 
+func (h* Headers) PrintAll() {
+	for key, val := range h.headers {
+		fmt.Printf(" - %s: %s\n", key, val)
+	}
+}
 // parse header line by line and adds into our map
 // done=true when crlf is at start
 func (h* Headers) Parse(data []byte) (int, bool, error) {
-	fmt.Println("header", string(data))
-
 	read := 0
 	done := false
 

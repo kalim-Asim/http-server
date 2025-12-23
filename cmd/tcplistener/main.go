@@ -32,5 +32,9 @@ func main() {
 		fmt.Printf(" - Method: %s\n", rl.Method)
 		fmt.Printf(" - Target: %s\n", rl.RequestTarget)
 		fmt.Printf(" - Version: %s\n", rl.HttpVersion)
+
+		headers := req.Headers
+		fmt.Println("Headers:")
+		headers.PrintAll()
 	}
 }

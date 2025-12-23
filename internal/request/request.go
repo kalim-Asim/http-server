@@ -8,8 +8,6 @@ import (
 	"github.com/kalim-Asim/http-server/internal/headers"
 )
 
-// focused only on parsing the HTTP request line
-
 // parser state machine, to track parser progress
 type parserState string 
 const (
