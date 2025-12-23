@@ -3,12 +3,12 @@ package headers
 import (
 	"bytes"
 	"fmt"
-	"strings"
 )
 
 var SEPARATOR = []byte("\r\n") // cflf token
 var ERROR_CRLF_NOT_FOUND = fmt.Errorf("crlf token not found")
 var ERROR_BAD_HEADER = fmt.Errorf("header does not match")
+var ERROR_BAD_FIELD_NAME = fmt.Errorf("malformed field name")
 
 // example: header -> Host: localhost:42069\r\n\r\n
 type Headers map[string]string
@@ -17,52 +17,57 @@ func NewHeaders() Headers {
 	return make(Headers) 
 }
 
-// there should not be any space between key and first colon
-func isValidHeader(d []byte) (bool, string, string) {
-	s := strings.TrimSpace(string(d))
-
-	idxColon := strings.IndexByte(s, ':')
-	if idxColon == -1 {
-		return false, "", ""
+// returns key, value, error 
+func parseHeader(fieldLine []byte) (string, string, error) {
+	parts := bytes.SplitN(fieldLine, []byte(":"), 2)
+	if len(parts) != 2 {
+		return "", "", ERROR_BAD_FIELD_NAME
 	}
 
-	// No space before colon
-	if idxColon > 0 && s[idxColon-1] == ' ' {
-		return false, "", ""
+	rawName := parts[0]
+	if len(rawName) > 0 && (rawName[len(rawName)-1] == ' ' || rawName[len(rawName)-1] == '\t') {
+		return "", "", ERROR_BAD_FIELD_NAME
 	}
 
-	key := strings.TrimSpace(s[:idxColon])
-	value := strings.TrimSpace(s[idxColon+1:])
+	name := bytes.TrimSpace(rawName)
+	val := bytes.TrimSpace(parts[1])
 
-	if key == "" || value == "" {
-		return false, "", ""
-	}
-
-	return true, key, value
+	return string(name), string(val), nil
 }
-
 
 // parse header line by line and adds into our map
 // done=true when crlf is at start
-func (h Headers) Parse(data []byte) (n int, done bool, err error) {
-	idx := bytes.Index(data, SEPARATOR)
-	if idx == -1 {
-		return 0, false, nil
+func (h Headers) Parse(data []byte) (int, bool, error) {
+	read := 0
+	done := false
+
+	for {
+		idx := bytes.Index(data[read:], SEPARATOR)
+		if idx == -1 {
+			break // no more complete lines
+		}
+
+		// check for empty line -> headers done
+		if idx == 0 {
+			if read == 0 {
+        // input starts with CRLF
+        read += len(SEPARATOR)
+				done = true
+    	}
+			break
+		}
+
+		line := data[read : read+idx]
+		fmt.Printf("%s\n", string(line))
+
+		key, val, err := parseHeader(line)
+		if err != nil {
+			return 0, false, err
+		}
+
+		h[key] = val
+		read += idx + len(SEPARATOR)
 	}
 
-	// end of headers
-	if idx == 0 {
-		return len(SEPARATOR), true, nil
-	}
-
-	line, read := data[:idx], idx + len(SEPARATOR)
-
-	isValid, key, value := isValidHeader(line)
-	if !isValid {
-		return 0, false, ERROR_BAD_HEADER
-	} 
-
-	h[key] = value 
-	return read, false, nil 
-} 
-
+	return read, done, nil
+}
