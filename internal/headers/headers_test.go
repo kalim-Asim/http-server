@@ -16,7 +16,7 @@ func TestHeadersParse(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, headers)
-		assert.Equal(t, "localhost:42069", headers["Host"])
+		assert.Equal(t, "localhost:42069", headers.Get("Host"))
 		assert.Equal(t, 23, n)
 		assert.False(t, done)
 	})
@@ -28,7 +28,7 @@ func TestHeadersParse(t *testing.T) {
 		n, done, err := headers.Parse(data)
 
 		require.NoError(t, err)
-		assert.Equal(t, "localhost:42069", headers["Host"])
+		assert.Equal(t, "localhost:42069", headers.Get("Host"))
 		assert.Equal(t, 36, n) // includes leading + trailing whitespace + only first crlf
 		assert.False(t, done)
 	})
@@ -42,7 +42,7 @@ func TestHeadersParse(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.False(t, done)
-		assert.Equal(t, "localhost:42069", headers["Host"])
+		assert.Equal(t, "localhost:42069", headers.Get("Host"))
 		assert.Equal(t, 23, n)
 
 		// second header (called again with new data)
@@ -51,7 +51,7 @@ func TestHeadersParse(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.False(t, done)
-		assert.Equal(t, "curl/8.0", headers["User-Agent"])
+		assert.Equal(t, "curl/8.0", headers.Get("User-Agent"))
 		assert.Equal(t, 22, n)
 	})
 
@@ -64,7 +64,7 @@ func TestHeadersParse(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, done)
 		assert.Equal(t, len(SEPARATOR), n)
-		assert.Len(t, headers, 0)
+		assert.Len(t, headers.headers, 0)
 	})
 
 	t.Run("Invalid spacing header", func(t *testing.T) {
@@ -75,6 +75,29 @@ func TestHeadersParse(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Equal(t, 0, n)
+		assert.False(t, done)
+	})
+
+	t.Run("Invalid character in field-name", func(t *testing.T) {
+		headers := NewHeaders() 
+		data := []byte("H©st: localhost:42069\r\n\r\n")
+		n, done, err := headers.Parse(data)
+
+		require.Error(t, err) 
+		assert.Equal(t, 0, n) 
+		assert.False(t, done)
+	})
+
+	t.Run("Valid capital field-name header", func(t *testing.T) {
+		headers := NewHeaders()
+		data := []byte("HOST: localhost:42069\r\n\r\n")
+
+		n, done, err := headers.Parse(data)
+
+		require.NoError(t, err)
+		require.NotNil(t, headers)
+		assert.Equal(t, "localhost:42069", headers.Get("HOST"))
+		assert.Equal(t, 23, n)
 		assert.False(t, done)
 	})
 }

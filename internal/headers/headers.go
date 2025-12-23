@@ -3,19 +3,14 @@ package headers
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 var SEPARATOR = []byte("\r\n") // cflf token
 var ERROR_CRLF_NOT_FOUND = fmt.Errorf("crlf token not found")
 var ERROR_BAD_HEADER = fmt.Errorf("header does not match")
 var ERROR_BAD_FIELD_NAME = fmt.Errorf("malformed field name")
-
-// example: header -> Host: localhost:42069\r\n\r\n
-type Headers map[string]string
-
-func NewHeaders() Headers {
-	return make(Headers) 
-}
+var ERROR_INVALID_FIELD_NAME = fmt.Errorf("field name is invalid")
 
 // returns key, value, error 
 func parseHeader(fieldLine []byte) (string, string, error) {
@@ -35,9 +30,29 @@ func parseHeader(fieldLine []byte) (string, string, error) {
 	return string(name), string(val), nil
 }
 
+// example: header -> Host: localhost:42069\r\n (valid)
+type Headers struct {
+	headers map[string]string
+}
+
+func NewHeaders() *Headers {
+	return &Headers{
+		headers: make(map[string]string),
+	}
+}
+
+func (h *Headers) Get(key string) string {
+	return h.headers[strings.ToLower(key)]
+}
+
+// set map keys to lowercase
+func (h *Headers) Set(key, value string) {
+	h.headers[strings.ToLower(key)] = value 
+}
+
 // parse header line by line and adds into our map
 // done=true when crlf is at start
-func (h Headers) Parse(data []byte) (int, bool, error) {
+func (h* Headers) Parse(data []byte) (int, bool, error) {
 	read := 0
 	done := false
 
@@ -58,16 +73,39 @@ func (h Headers) Parse(data []byte) (int, bool, error) {
 		}
 
 		line := data[read : read+idx]
-		fmt.Printf("%s\n", string(line))
-
+	
 		key, val, err := parseHeader(line)
 		if err != nil {
 			return 0, false, err
 		}
+		if !isToken(key) {
+			return 0, false, ERROR_INVALID_FIELD_NAME
+		}
 
-		h[key] = val
+		h.Set(key, val)
 		read += idx + len(SEPARATOR)
 	}
 
 	return read, done, nil
+}
+
+func isToken(str string) bool {
+	for _, ch := range str  {
+		found := false 
+		if ch >= 'A' && ch <= 'Z'|| 
+			ch >= 'a' && ch <= 'z'|| 
+			ch >= '0' && ch <= '9' {
+				found = true 
+			}
+
+		switch ch {
+			case  '#', '!', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '/', '~':
+				found = true 
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return len(str) >= 1 
 }
