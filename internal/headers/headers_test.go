@@ -100,4 +100,26 @@ func TestHeadersParse(t *testing.T) {
 		assert.Equal(t, 23, n)
 		assert.False(t, done)
 	})
+
+	t.Run("Valid 2 headers with same key", func(t *testing.T) {
+		headers := NewHeaders()
+
+		// first header
+		data := []byte("Host: localhost:42069\r\n")
+		n, done, err := headers.Parse(data)
+
+		require.NoError(t, err)
+		assert.False(t, done)
+		assert.Equal(t, "localhost:42069", headers.Get("Host"))
+		assert.Equal(t, 23, n)
+
+		// second header (called again with same key)
+		data = []byte("Host: localhost:42067\r\n")
+		n, done, err = headers.Parse(data)
+
+		require.NoError(t, err)
+		assert.False(t, done)
+		assert.Equal(t, "localhost:42069, localhost:42067", headers.Get("Host"))
+		assert.Equal(t, 23, n)
+	})
 }

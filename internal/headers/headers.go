@@ -32,6 +32,8 @@ func parseHeader(fieldLine []byte) (string, string, error) {
 
 // example: header -> Host: localhost:42069\r\n (valid)
 type Headers struct {
+	// key lower case
+	// value can be multiple as per RFC 9110 5.2
 	headers map[string]string
 }
 
@@ -45,7 +47,11 @@ func (h *Headers) Get(key string) string {
 	return h.headers[strings.ToLower(key)]
 }
 
-// set map keys to lowercase
+func (h* Headers) Has(key string) bool {
+	_, ok := h.headers[strings.ToLower(key)]
+	return ok 
+}
+
 func (h *Headers) Set(key, value string) {
 	h.headers[strings.ToLower(key)] = value 
 }
@@ -82,7 +88,14 @@ func (h* Headers) Parse(data []byte) (int, bool, error) {
 			return 0, false, ERROR_INVALID_FIELD_NAME
 		}
 
-		h.Set(key, val)
+		if h.Has(key) {
+			oldValue := h.Get(key)
+			newValue := oldValue + ", " + val 
+			h.Set(key, newValue)
+		} else {
+			h.Set(key, val)
+		}
+		
 		read += idx + len(SEPARATOR)
 	}
 
