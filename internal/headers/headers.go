@@ -6,11 +6,18 @@ import (
 	"strings"
 )
 
-var SEPARATOR = []byte("\r\n") // cflf token
-var ERROR_CRLF_NOT_FOUND = fmt.Errorf("crlf token not found")
-var ERROR_BAD_HEADER = fmt.Errorf("header does not match")
-var ERROR_BAD_FIELD_NAME = fmt.Errorf("malformed field name")
-var ERROR_INVALID_FIELD_NAME = fmt.Errorf("field name is invalid")
+/* -------------  HEADER FORMAT  ----------------
+
+field-line   = field-name ":" OWS field-value OWS
+*/
+
+var (
+	SEPARATOR = []byte("\r\n") // cflf token
+	ERROR_BAD_FIELD_NAME = fmt.Errorf("malformed field name")
+	ERROR_CRLF_NOT_FOUND = fmt.Errorf("crlf token not found")
+	ERROR_BAD_HEADER = fmt.Errorf("header does not match")
+	ERROR_INVALID_FIELD_NAME = fmt.Errorf("field name is invalid")
+)
 
 // returns key, value, error 
 func parseHeader(fieldLine []byte) (string, string, error) {

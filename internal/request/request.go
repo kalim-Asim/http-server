@@ -4,8 +4,35 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
+	// "strings"
 
 	"github.com/kalim-Asim/http-server/internal/headers"
+)
+
+// we have to parse this...
+/*
+	POST /coffee HTTP/1.1
+	Host: localhost:42069
+	User-Agent: curl/7.81.0
+	Accept: * / *
+	Content-Length: 21
+
+	{"flavor":"dark mode"}
+*/
+
+/*
+	     HTTP-message   = start-line CRLF
+                      *( field-line CRLF )
+                      CRLF
+                      [ message-body ] ( we need to parse this now..)
+*/
+
+var (
+	SEPARATOR = []byte("\r\n")
+	ERROR_BAD_START_LINE = fmt.Errorf("bad start line")
+	ERROR_REQUEST_IN_ERROR_STATE = fmt.Errorf("request in error state")
+	ERROR_UNSUPPORTED_HTTP_VERSION = fmt.Errorf("http version not supported")
 )
 
 // parser state machine, to track parser progress
@@ -13,6 +40,7 @@ type parserState string
 const (
 	StateInit parserState = "init"
 	StateHeader parserState = "header"
+	StateBody parserState = "body"
 	StateDone parserState = "done"
 	StateError parserState = "error"
 )
@@ -30,6 +58,7 @@ type Request struct {
 	RequestLine RequestLine // holds the parse requestline(first line)
 	State parserState
 	Headers headers.Headers // headers parsed
+	Body string
 }
 
 func NewRequest() *Request {
@@ -38,11 +67,6 @@ func NewRequest() *Request {
 		Headers: *headers.NewHeaders(), 
 	}
 }
-
-var ERROR_BAD_START_LINE = fmt.Errorf("bad start line")
-var ERROR_UNSUPPORTED_HTTP_VERSION = fmt.Errorf("http version not supported")
-var ERROR_REQUEST_IN_ERROR_STATE = fmt.Errorf("request in error state")
-var SEPARATOR = []byte("\r\n") 
 
 func (r *Request) done() bool {
 	return r.State == StateDone
@@ -95,7 +119,6 @@ outer:
 		case StateError:
 			return 0, ERROR_REQUEST_IN_ERROR_STATE 
 			
-			
 		case StateInit:
 			rl, n, err := parseRequestLine(currentData)
 			if err != nil {
@@ -121,7 +144,32 @@ outer:
 			read += n 
 
 			if done {
+				if !r.Headers.Has("content-length") {
+					r.State = StateDone
+				} else {
+					r.State = StateBody
+				}
+			}
+
+		case StateBody:
+			contentLen, err := strconv.Atoi(r.Headers.Get("content-length"))
+			if err != nil {
+				return 0, fmt.Errorf("invalid content-length")
+			}
+
+			remaining := min(len(currentData), contentLen - len(r.Body))
+			r.Body += string(currentData[:remaining])
+			read += remaining 
+			
+			// too much data
+			if len(currentData) > remaining {
+				return 0, fmt.Errorf("content-length and body length does not match")
+			}
+
+			if len(r.Body) == contentLen {
 				r.State = StateDone
+			} else {
+				break outer 
 			}
 
 		case StateDone:
@@ -140,22 +188,29 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := NewRequest()
 	buf := make([]byte, 1024)
 	bufLen := 0
-	// req.State = StateInit
 
 	for !req.done() && !req.error(){
-		n, err := reader.Read(buf[bufLen:]) // how many bytes you have read from the reader
-		if err != nil {
-			return nil, err 
+		n, err := reader.Read(buf[bufLen:])
+		if err != nil && err != io.EOF {
+				return nil, err
 		}
 
 		bufLen += n
-		readN, err := req.parse(buf[:bufLen]) // how many bytes you have parsed from the buffer
-		if err != nil {
-			return nil, err 
+
+		readN, parseErr := req.parse(buf[:bufLen])
+		if parseErr != nil {
+				return nil, parseErr
 		}
-		
+
 		copy(buf, buf[readN:bufLen])
 		bufLen -= readN
+
+		if err == io.EOF {
+				if !req.done() {
+						return nil, fmt.Errorf("unexpected EOF while parsing request body")
+				}
+				break
+		}
 	}
 
 	return req, nil 	
