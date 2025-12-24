@@ -144,36 +144,43 @@ outer:
 			read += n 
 
 			if done {
-				if !r.Headers.Has("content-length") {
-					r.State = StateDone
-				} else {
-					r.State = StateBody
-				}
+				r.State = StateBody
 			}
 
 		case StateBody:
-			contentLen, err := strconv.Atoi(r.Headers.Get("content-length"))
-			if err != nil {
-				return 0, fmt.Errorf("invalid content-length")
+
+			if r.Headers.Has("content-length") {
+				contentLen, err := strconv.Atoi(r.Headers.Get("content-length"))
+				if err != nil {
+						return 0, fmt.Errorf("invalid content-length")
+				}
+
+				if contentLen == 0 {
+            r.State = StateDone
+            return read, nil
+        }
+
+				remaining := min(len(currentData), contentLen-len(r.Body))
+				r.Body += string(currentData[:remaining])
+				read += remaining
+
+				if len(r.Body) == contentLen {
+						r.State = StateDone
+				} else {
+						break outer
+				}
+				return read, nil
 			}
 
-			remaining := min(len(currentData), contentLen - len(r.Body))
-			r.Body += string(currentData[:remaining])
-			read += remaining 
-			
-			// too much data
-			if len(currentData) > remaining {
-				return 0, fmt.Errorf("content-length and body length does not match")
-			}
-
-			if len(r.Body) == contentLen {
-				r.State = StateDone
-			} else {
-				break outer 
-			}
+			// read until EOF (no content-length field)
+			r.Body += string(currentData)
+			read += len(currentData)
+			// r.State = StateDone
+			break outer
 
 		case StateDone:
 			break outer 
+
 		default:
 			panic("nothing to show... ")
 		}
@@ -182,7 +189,7 @@ outer:
 	return read, nil 
 }
 
-// orchestration function
+// orchestration function,
 // parse the request-line from the reader
 func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := NewRequest()
@@ -206,10 +213,16 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		bufLen -= readN
 
 		if err == io.EOF {
-				if !req.done() {
-						return nil, fmt.Errorf("unexpected EOF while parsing request body")
-				}
-				break
+			// EOF terminates body if no Content-Length
+			if req.State == StateBody && !req.Headers.Has("content-length") {
+					req.State = StateDone
+					break
+			}
+
+			if !req.done() {
+					return nil, fmt.Errorf("unexpected EOF while parsing request body")
+			}
+			break
 		}
 	}
 
