@@ -173,9 +173,8 @@ outer:
 			}
 
 			// read until EOF (no content-length field)
-			
-				r.Body += string(currentData)
-				read += len(currentData)
+			r.Body += string(currentData)
+			read += len(currentData)
 			
 			break outer
 

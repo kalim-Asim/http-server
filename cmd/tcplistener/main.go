@@ -35,6 +35,10 @@ func main() {
 
 		headers := req.Headers
 		fmt.Println("Headers:")
-		headers.PrintAll()
+		headers.PrintHeaders()
+
+
+		fmt.Println("Body:")
+		fmt.Printf("%s\n", req.Body)
 	}
 }

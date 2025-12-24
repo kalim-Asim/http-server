@@ -63,7 +63,7 @@ func (h *Headers) Set(key, value string) {
 	h.headers[strings.ToLower(key)] = value 
 }
 
-func (h* Headers) PrintAll() {
+func (h* Headers) PrintHeaders() {
 	for key, val := range h.headers {
 		fmt.Printf(" - %s: %s\n", key, val)
 	}
