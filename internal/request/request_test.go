@@ -152,8 +152,8 @@ func TestParseBody(t *testing.T) {
 			"body without content length",
 		numBytesPerRead: 3,
 	}
-	r, _ = RequestFromReader(reader)
-	// require.NoError(t, err)
-	// require.NotNil(t, r)
+	r, err = RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
 	assert.Equal(t, "body without content length", string(r.Body))
 }

@@ -173,9 +173,10 @@ outer:
 			}
 
 			// read until EOF (no content-length field)
-			r.Body += string(currentData)
-			read += len(currentData)
-			// r.State = StateDone
+			
+				r.Body += string(currentData)
+				read += len(currentData)
+			
 			break outer
 
 		case StateDone:
@@ -215,12 +216,12 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		if err == io.EOF {
 			// EOF terminates body if no Content-Length
 			if req.State == StateBody && !req.Headers.Has("content-length") {
-					req.State = StateDone
-					break
+				req.State = StateDone
+				break
 			}
 
 			if !req.done() {
-					return nil, fmt.Errorf("unexpected EOF while parsing request body")
+				return nil, fmt.Errorf("unexpected EOF while parsing request body")
 			}
 			break
 		}
