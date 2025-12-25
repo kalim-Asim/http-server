@@ -68,6 +68,13 @@ func (h* Headers) PrintHeaders() {
 		fmt.Printf(" - %s: %s\n", key, val)
 	}
 }
+
+func (h Headers) ForEach(fn func(key, val string)) {
+	for k, v := range h.headers {
+		fn(k, v)
+	}
+}
+
 // parse header line by line and adds into our map
 // done=true when crlf is at start
 func (h* Headers) Parse(data []byte) (int, bool, error) {

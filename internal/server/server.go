@@ -1,20 +1,12 @@
 package server
 
 import (
-	// "log"
 	"net"
 	"sync/atomic"
-	// "net/http"
 	"fmt"
+	"github.com/kalim-Asim/http-server/internal/response"
 )
 
-/*
-HTTP/1.1 200 OK
-Content-Type: text/plain
-Content-Length: 13
-
-Hello World!
-*/
 type Server struct {
 	listener net.Listener
 	isClosed atomic.Bool
@@ -29,6 +21,16 @@ func (s *Server) Close() error {
 		return s.listener.Close()
 	}
 	return nil
+}
+
+// manages the lifecycle of a single connection. 
+// It is critical to use defer conn.Close() to ensure 
+// the TCP connection is released regardless of how the function exits. 
+func (s *Server) handle(conn net.Conn) {
+	defer conn.Close()
+	header := response.GetDefaultHeaders(0)
+	response.WriteStatusLine(conn, response.StatusOK)
+	response.WriteHeaders(conn, header)
 }
 
 // runs the acceptance loop. By checking the atomic.Bool, 
@@ -46,43 +48,22 @@ func (s *Server) listen() {
 			continue
 		}
 
-		// Handle each connection in its own goroutine
 		go s.handle(conn)
 	}
 }
 
-// manages the lifecycle of a single connection. 
-// It is critical to use defer conn.Close() to ensure 
-// the TCP connection is released regardless of how the function exits. 
-func (s *Server) handle(conn net.Conn) {
-	defer conn.Close()
-
-	//example response
-	response := "HTTP/1.1 200 OK\r\n" +
-							"Content-Type: text/plain\r\n" +
-							"Content-Length: 13\r\n" +
-							"\r\n" +
-							"Hello, World!"
-	
-	_, err := conn.Write([]byte(response))
-	if err != nil {
-		fmt.Printf("Write error: %v\n", err)
-	}
-}
-
 func Serve(port int) (*Server, error) {
-    addr := fmt.Sprintf(":%d", port)
-    ln, err := net.Listen("tcp", addr)
-    if err != nil {
-        return nil, err
-    }
+	addr := fmt.Sprintf(":%d", port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+			return nil, err
+	}
 
-    srv := &Server{
-        listener: ln,
-        // other configuration
-    }
+	srv := &Server{
+		listener: ln,
+	}
 
-    go srv.listen()
+	go srv.listen()
 
-    return srv, nil
+	return srv, nil
 }

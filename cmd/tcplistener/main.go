@@ -34,8 +34,10 @@ func main() {
 
 		headers := req.Headers
 		fmt.Println("Headers:")
-		headers.PrintHeaders()
-
+		// headers.PrintHeaders()
+		headers.ForEach(func(key, val string) {
+			fmt.Printf(" - %s: %s\n", key, val)
+		})
 
 		fmt.Println("Body:")
 		fmt.Printf("%s\n", req.Body)
