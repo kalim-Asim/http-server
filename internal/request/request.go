@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	// "strings"
-
 	"github.com/kalim-Asim/http-server/internal/headers"
 )
 
@@ -22,10 +20,10 @@ import (
 */
 
 /*
-	     HTTP-message   = start-line CRLF
-                      *( field-line CRLF )
-                      CRLF
-                      [ message-body ] ( we need to parse this now..)
+HTTP-message   = start-line CRLF
+							*( field-line CRLF )
+							CRLF
+							[ message-body ] ( we need to parse this now..)
 */
 
 var (
