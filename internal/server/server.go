@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -22,7 +21,7 @@ type HandlerError struct {
 	Message []byte 
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError 
+type Handler func(w *response.Writer, req *request.Request)
 
 // stops the server by closing the underlying net.Listener. 
 // Setting the atomic boolean ensures the listen() loop 
@@ -38,33 +37,19 @@ func (s *Server) Close() error {
 // manages the lifecycle of a single connection. 
 // It is critical to use defer conn.Close() to ensure 
 // the TCP connection is released regardless of how the function exits. 
-func (s *Server) handle(conn net.Conn) {
+func (s *Server) handle(conn io.ReadWriteCloser) {
 	defer conn.Close()
-	headers := response.GetDefaultHeaders(0)
+
+	responseWriter := response.NewWriter(conn) 
 	r, err := request.RequestFromReader(conn)
 
 	if err != nil {
-		response.WriteStatusLine(conn, response.StatusBadRequest)
-		response.WriteHeaders(conn, *headers)
+		responseWriter.WriteStatusLine(response.StatusBadRequest)
+		responseWriter.WriteHeaders(*response.GetDefaultHeaders(0))
 		return 
 	}
-
-	var body []byte = nil 
-	writer := bytes.NewBuffer([]byte{})
-	handlerError := s.handler(writer, r)
-	var status response.StatusCode = response.StatusOK
-
-	if handlerError != nil {
-		status = handlerError.StatusCode
-		body = []byte(handlerError.Message)
-	} else {
-		body = writer.Bytes()
-	}
-
-	headers.Set("Content-Length", fmt.Sprintf("%d", len(body)))
-	response.WriteStatusLine(conn, status)
-	response.WriteHeaders(conn, *headers)
-	conn.Write(body)
+	
+	s.handler(responseWriter, r)
 }
 
 // runs the acceptance loop. By checking the atomic.Bool, 
