@@ -148,8 +148,9 @@ func TestParseBody(t *testing.T) {
 	reader = &chunkReader{
 		data: "POST /submit HTTP/1.1\r\n" +
 			"Host: localhost:42069\r\n" +
+			"Content-Length: 27\r\n" +
 			"\r\n" +
-			"body without content length",
+			"body without content length", // removed earlier test case without body bcz that was not a valid http testcase
 		numBytesPerRead: 3,
 	}
 	r, err = RequestFromReader(reader)

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
+
 	"github.com/kalim-Asim/http-server/internal/headers"
 )
 
@@ -70,10 +72,6 @@ func (r *Request) done() bool {
 	return r.State == StateDone
 }
 
-func (r *Request) error() bool {
-	return r.State == StateError
-}
-
 // helper function to do parsing
 func parseRequestLine(b []byte) (*RequestLine, int, error) {
 	idx := bytes.Index(b, SEPARATOR)
@@ -102,6 +100,18 @@ func parseRequestLine(b []byte) (*RequestLine, int, error) {
 	return rl, read, nil 
 }
 
+func getLength(r headers.Headers, key string) int {
+	var length int = 0 
+	if r.Has(key) {
+		length, _ = strconv.Atoi(r.Get(key))
+	}
+	return length 
+}
+func (r *Request) hasBody() bool {
+	length := getLength(r.Headers, "content-length")
+	return length > 0 
+}
+
 // It accepts the next slice of bytes that needs to be parsed into the Request struct.
 // It updates the "state" of the parser, and the parsed RequestLine field.
 // It returns the number of bytes it consumed 
@@ -112,6 +122,9 @@ func (r *Request) parse(data []byte) (int, error) {
 outer:
 	for {
 		currentData := data[read:]
+		if len(currentData) == 0 {
+			break 
+		}
 
 		switch r.State {
 		case StateError:
@@ -134,6 +147,7 @@ outer:
 		case StateHeader:
 			n, done, err := r.Headers.Parse(currentData)
 			if err != nil {
+				r.State = StateError
 				return 0, fmt.Errorf("error parsing header... ")
 			}
 			if n == 0 {
@@ -142,39 +156,27 @@ outer:
 			read += n 
 
 			if done {
-				r.State = StateBody
+				if r.hasBody() {
+					r.State = StateBody
+				} else {
+					r.State = StateDone
+				}
 			}
 
 		case StateBody:
 
-			if r.Headers.Has("content-length") {
-				contentLen, err := strconv.Atoi(r.Headers.Get("content-length"))
-				if err != nil {
-						return 0, fmt.Errorf("invalid content-length")
-				}
-
-				if contentLen == 0 {
-            r.State = StateDone
-            return read, nil
-        }
-
-				remaining := min(len(currentData), contentLen-len(r.Body))
-				r.Body += string(currentData[:remaining])
-				read += remaining
-
-				if len(r.Body) == contentLen {
-						r.State = StateDone
-				} else {
-						break outer
-				}
-				return read, nil
+			length := getLength(r.Headers, "content-length")
+			if length == 0 {
+					panic("chuncked not implemented")
 			}
 
-			// read until EOF (no content-length field)
-			r.Body += string(currentData)
-			read += len(currentData)
-			
-			break outer
+			remaining := min(len(currentData), length - len(r.Body))
+			r.Body += string(currentData[:remaining])
+			read += remaining
+
+			if len(r.Body) == length {
+					r.State = StateDone
+			}
 
 		case StateDone:
 			break outer 
@@ -194,9 +196,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, 1024)
 	bufLen := 0
 
-	for !req.done() && !req.error(){
+	for !req.done() {
+		slog.Info("RequestFromReader", "state", req.State)
+
 		n, err := reader.Read(buf[bufLen:])
-		if err != nil && err != io.EOF {
+		if err != nil {
 				return nil, err
 		}
 
@@ -209,19 +213,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		copy(buf, buf[readN:bufLen])
 		bufLen -= readN
-
-		if err == io.EOF {
-			// EOF terminates body if no Content-Length
-			if req.State == StateBody && !req.Headers.Has("content-length") {
-				req.State = StateDone
-				break
-			}
-
-			if !req.done() {
-				return nil, fmt.Errorf("unexpected EOF while parsing request body")
-			}
-			break
-		}
 	}
 
 	return req, nil 	
