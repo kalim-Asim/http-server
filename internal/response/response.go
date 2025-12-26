@@ -71,3 +71,29 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	n, err := w.writer.Write(p)
 	return n, err 
 }
+
+/*
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Transfer-Encoding: chunked
+
+<n>\r\n
+<data of length n>\r\n
+<n>\r\n
+<data of length n>\r\n
+<n>\r\n
+<data of length n>\r\n
+<n>\r\n
+<data of length n>\r\n
+... repeat ...
+0\r\n
+\r\n
+*/
+
+// func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+
+// }
+
+// func (w *Writer) WriteChunkedBodyDone() (int, error) {
+
+// }

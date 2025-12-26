@@ -59,6 +59,11 @@ func (h* Headers) Has(key string) bool {
 	return ok 
 }
 
+func (h* Headers) Delete(key string) {
+	key = strings.ToLower(key)
+	delete(h.headers, key)
+} 
+
 func (h *Headers) Set(key, value string) {
 	h.headers[strings.ToLower(key)] = value 
 }
