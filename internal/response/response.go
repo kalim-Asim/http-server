@@ -88,6 +88,28 @@ Transfer-Encoding: chunked
 ... repeat ...
 0\r\n
 \r\n
+
+
+
+Example:- 
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Trailer: Lane, Prime, TJ
+
+1E
+I could go for a cup of coffee
+C
+But not Java
+12
+Never go full Java
+0
+
+0\r\n
+Lane: goober
+Prime: chill-guy
+TJ: 1-indexer
+\r\n
 */
 
 // func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
@@ -97,3 +119,8 @@ Transfer-Encoding: chunked
 // func (w *Writer) WriteChunkedBodyDone() (int, error) {
 
 // }
+
+// func (w *Writer) WriteTrailers(t *headers.Headers, body []byte) error {
+
+// }
+

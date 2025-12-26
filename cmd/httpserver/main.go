@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/kalim-Asim/http-server/internal/headers"
 	"github.com/kalim-Asim/http-server/internal/request"
 	"github.com/kalim-Asim/http-server/internal/response"
 	"github.com/kalim-Asim/http-server/internal/server"
@@ -74,24 +76,37 @@ func main() {
 					w.WriteStatusLine(status)
 					slog.Info("https://httpbin.org/" + target[len("/httpbin/"):])
 					h.Delete("Content-Length")
+
 					h.Set("Transfer-Encoding", "chunked")
 					h.Set("Content-Type", "text/plain")
+
+					h.Set("Trailer", "X-Content-SHA256")
+					h.Set("Trailer", "X-Content-Length")
+
 					w.WriteHeaders(*h)
 
+					fullBody := []byte{}
 					for {
-						data := make([]byte, 16)
+						data := make([]byte, 32)
 						n, err := res.Body.Read(data)
 						if err != nil {
 							break
 						}
 
+						fullBody = append(fullBody, data[:n]...)
 						w.WriteBody([]byte(fmt.Sprintf("%x\r\n", n)))
 						w.WriteBody(data[:n])
 						w.WriteBody([]byte("\r\n"))
 					}
-					w.WriteBody([]byte("0\r\n\r\n"))
-				}
+					w.WriteBody([]byte("0\r\n"))
 
+					trailers := headers.NewHeaders()
+					hash := sha256.Sum256(fullBody)
+					trailers.Set("X-Content-SHA256", toString(hash[:]))
+					trailers.Set("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
+					w.WriteHeaders(*trailers)
+					w.WriteBody([]byte("\r\n"))
+				}
 			}
 
 			h.Set("Content-Length", fmt.Sprintf("%d", len(body)))
@@ -112,4 +127,12 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 	log.Println("Server gracefully stopped")
+}
+
+func toString(data []byte) string {
+	out := ""
+	for _, d := range data {
+		out += fmt.Sprintf("%x", d)
+	}
+	return out 
 }
