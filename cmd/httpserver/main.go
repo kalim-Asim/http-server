@@ -108,8 +108,23 @@ func main() {
 				trailers.Set("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
 
 				w.WriteTrailers(trailers, nil)
-			}
+				return 
 
+			} else if req.RequestLine.RequestTarget == "/video" {
+				video, err := os.ReadFile("assets/vim.mp4")
+				if err != nil {
+					body = []byte(InternalServerError)
+					status = response.StatusInternalServerError
+					return 
+				} 
+				h.Set("Content-Type", "video/mp4")
+				h.Set("Content-Length", fmt.Sprintf("%d", len(video)))
+
+				w.WriteStatusLine(status)
+				w.WriteHeaders(*h)
+				w.WriteBody(video)
+				return 
+			}
 
 			h.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 			h.Set("Content-Type", "text/html")
