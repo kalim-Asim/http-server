@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -63,51 +62,54 @@ func main() {
 			if req.RequestLine.RequestTarget == "/yourproblem" {
 				body = []byte(BadRequest)
 				status = response.StatusBadRequest
+
 			} else if req.RequestLine.RequestTarget == "/myproblem" {
 				body = []byte(InternalServerError)
 				status = response.StatusInternalServerError
+
 			} else if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/stream") {
 				target := req.RequestLine.RequestTarget
 				res, err := http.Get("https://httpbin.org/" + target[len("/httpbin/"):])
 				if err != nil {
 					body = []byte(InternalServerError)
 					status = response.StatusInternalServerError
-				} else {
-					w.WriteStatusLine(status)
-					slog.Info("https://httpbin.org/" + target[len("/httpbin/"):])
-					h.Delete("Content-Length")
-
-					h.Set("Transfer-Encoding", "chunked")
-					h.Set("Content-Type", "text/plain")
-
-					h.Set("Trailer", "X-Content-SHA256")
-					h.Set("Trailer", "X-Content-Length")
-
-					w.WriteHeaders(*h)
-
-					fullBody := []byte{}
-					for {
-						data := make([]byte, 32)
-						n, err := res.Body.Read(data)
-						if err != nil {
-							break
-						}
-
-						fullBody = append(fullBody, data[:n]...)
-						w.WriteBody([]byte(fmt.Sprintf("%x\r\n", n)))
-						w.WriteBody(data[:n])
-						w.WriteBody([]byte("\r\n"))
-					}
-					w.WriteBody([]byte("0\r\n"))
-
-					trailers := headers.NewHeaders()
-					hash := sha256.Sum256(fullBody)
-					trailers.Set("X-Content-SHA256", toString(hash[:]))
-					trailers.Set("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
-					w.WriteHeaders(*trailers)
-					w.WriteBody([]byte("\r\n"))
+					return
 				}
+				defer res.Body.Close()
+
+				w.WriteStatusLine(status)
+
+				h.Delete("Content-Length")
+				h.Set("Transfer-Encoding", "chunked")
+				h.Set("Content-Type", "text/plain")
+				h.Set("Trailer", "X-Content-SHA256, X-Content-Length")
+
+				w.WriteHeaders(*h)
+
+				fullBody := []byte{}
+
+				buf := make([]byte, 32)
+				for {
+					n, err := res.Body.Read(buf)
+					if n > 0 {
+						fullBody = append(fullBody, buf[:n]...)
+						w.WriteChunkedBody(buf[:n])
+					}
+					if err != nil {
+						break
+					}
+				}
+
+				w.WriteChunkedBodyDone()
+
+				trailers := headers.NewHeaders()
+				hash := sha256.Sum256(fullBody)
+				trailers.Set("X-Content-SHA256", toString(hash[:]))
+				trailers.Set("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
+
+				w.WriteTrailers(trailers, nil)
 			}
+
 
 			h.Set("Content-Length", fmt.Sprintf("%d", len(body)))
 			h.Set("Content-Type", "text/html")

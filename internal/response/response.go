@@ -72,55 +72,45 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	return n, err 
 }
 
-/*
-HTTP/1.1 200 OK
-Content-Type: text/plain
-Transfer-Encoding: chunked
+// transfer-encoding
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 
-<n>\r\n
-<data of length n>\r\n
-<n>\r\n
-<data of length n>\r\n
-<n>\r\n
-<data of length n>\r\n
-<n>\r\n
-<data of length n>\r\n
-... repeat ...
-0\r\n
-\r\n
+	// chunk-size
+	if _, err := fmt.Fprintf(w.writer, "%x\r\n", len(p)); err != nil {
+		return 0, err
+	}
 
+	// chunk-data
+	if _, err := w.writer.Write(p); err != nil {
+		return 0, err
+	}
 
+	// CRLF
+	if _, err := w.writer.Write([]byte("\r\n")); err != nil {
+		return 0, err
+	}
 
-Example:- 
-HTTP/1.1 200 OK
-Content-Type: text/plain
-Transfer-Encoding: chunked
-Trailer: Lane, Prime, TJ
+	return len(p), nil
+}
 
-1E
-I could go for a cup of coffee
-C
-But not Java
-12
-Never go full Java
-0
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	// final chunk
+	_, err := w.writer.Write([]byte("0\r\n"))
+	return 0, err
+}
 
-0\r\n
-Lane: goober
-Prime: chill-guy
-TJ: 1-indexer
-\r\n
-*/
+// add trailer header
+func (w *Writer) WriteTrailers(t *headers.Headers, body []byte) error {
+	// write trailer headers
+	t.ForEach(func(k, v string) {
+		fmt.Fprintf(w.writer, "%s: %s\r\n", k, v)
+	})
 
-// func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
-
-// }
-
-// func (w *Writer) WriteChunkedBodyDone() (int, error) {
-
-// }
-
-// func (w *Writer) WriteTrailers(t *headers.Headers, body []byte) error {
-
-// }
+	// end of trailers
+	_, err := w.writer.Write([]byte("\r\n"))
+	return err
+}
 
